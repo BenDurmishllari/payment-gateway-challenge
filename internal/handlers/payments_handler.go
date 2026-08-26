@@ -30,6 +30,16 @@ func NewPaymentsHandler(storage *repository.PaymentsRepository, authorizer bank.
 	}
 }
 
+// GetHandler retrieves a previously processed payment by id.
+//
+//	@Summary		Get a payment
+//	@Description	Retrieves a previously processed payment by its id
+//	@Tags			payments
+//	@Produce		json
+//	@Param			id	path		string	true	"Payment ID"
+//	@Success		200	{object}	models.GetPaymentResponse
+//	@Failure		404	{string}	string	"payment not found"
+//	@Router			/api/payments/{id} [get]
 func (h *PaymentsHandler) GetHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
@@ -53,6 +63,17 @@ func (h *PaymentsHandler) GetHandler() http.HandlerFunc {
 // PostHandler validates the payment request, forwards it to the acquiring bank,
 // and stores the outcome. Rejected payments (validation failures) are never
 // forwarded to the bank and are not stored.
+//
+//	@Summary		Process a payment
+//	@Description	Validates a card payment and forwards it to the acquiring bank
+//	@Tags			payments
+//	@Accept			json
+//	@Produce		json
+//	@Param			payment	body		models.PostPaymentRequest	true	"Payment details"
+//	@Success		201		{object}	models.PostPaymentResponse
+//	@Failure		400		{object}	models.RejectedResponse	"validation failed"
+//	@Failure		502		{string}	string	"bank unavailable"
+//	@Router			/api/payments [post]
 func (h *PaymentsHandler) PostHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req models.PostPaymentRequest
