@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,7 +25,8 @@ type fixtures struct {
 
 func newFixtures(t *testing.T, authorizer bank.Authorizer) fixtures {
 	storage := repository.NewPaymentsRepository()
-	handler := NewPaymentsHandler(storage, authorizer)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := NewPaymentsHandler(storage, authorizer, logger)
 
 	router := chi.NewRouter()
 	router.Get("/api/payments/{id}", handler.GetHandler())

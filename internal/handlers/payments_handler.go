@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -17,24 +19,24 @@ import (
 type PaymentsHandler struct {
 	storage    *repository.PaymentsRepository
 	authorizer bank.Authorizer
+	logger     *slog.Logger
 }
 
-func NewPaymentsHandler(storage *repository.PaymentsRepository, authorizer bank.Authorizer) *PaymentsHandler {
+func NewPaymentsHandler(storage *repository.PaymentsRepository, authorizer bank.Authorizer, logger *slog.Logger) *PaymentsHandler {
 	return &PaymentsHandler{
 		storage:    storage,
 		authorizer: authorizer,
+		logger:     logger,
 	}
 }
 
-// GetHandler returns an http.HandlerFunc that handles HTTP GET requests.
-// It retrieves a payment record by its ID from the storage.
-// The ID is expected to be part of the URL.
 func (h *PaymentsHandler) GetHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		payment, ok := h.storage.GetPayment(id)
 
 		if !ok {
+			h.logger.InfoContext(r.Context(), "payment not found", slog.String("payment_id", id))
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
@@ -42,31 +44,33 @@ func (h *PaymentsHandler) GetHandler() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if err := json.NewEncoder(w).Encode(payment); err != nil {
+			h.logger.ErrorContext(r.Context(), "failed to encode payment response", slog.Any("error", err))
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
 }
 
-// PostHandler returns an http.HandlerFunc that handles HTTP POST requests.
-// It validates the payment request, forwards it to the acquiring bank, and
-// stores the outcome. A validation failure rejects the request without
-// calling the bank; a bank failure is reported without storing a payment,
-// since no definite outcome was received.
+// PostHandler validates the payment request, forwards it to the acquiring bank,
+// and stores the outcome. Rejected payments (validation failures) are never
+// forwarded to the bank and are not stored.
 func (h *PaymentsHandler) PostHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req models.PostPaymentRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeRejected(w, []models.FieldError{{Field: "body", Message: "must be valid JSON"}})
+			h.logger.WarnContext(r.Context(), "invalid payment request body", slog.Any("error", err))
+			h.writeRejected(r.Context(), w, []models.FieldError{{Field: "body", Message: "must be valid JSON"}})
 			return
 		}
 
 		if errs := req.Validate(time.Now()); len(errs) > 0 {
-			writeRejected(w, errs)
+			h.logger.InfoContext(r.Context(), "payment rejected", slog.Int("error_count", len(errs)))
+			h.writeRejected(r.Context(), w, errs)
 			return
 		}
 
 		authResp, err := h.authorizer.Authorize(r.Context(), toAuthorizationRequest(req))
 		if err != nil {
+			h.logger.ErrorContext(r.Context(), "bank authorization failed", slog.Any("error", err))
 			w.WriteHeader(bankErrorStatusCode(err))
 			return
 		}
@@ -81,19 +85,29 @@ func (h *PaymentsHandler) PostHandler() http.HandlerFunc {
 
 		h.storage.AddPayment(getResponse)
 
+		h.logger.InfoContext(r.Context(), "payment processed",
+			slog.String("payment_id", id),
+			slog.String("status", status),
+		)
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(postResponse)
+		if err := json.NewEncoder(w).Encode(postResponse); err != nil {
+			h.logger.ErrorContext(r.Context(), "failed to encode payment response", slog.Any("error", err))
+		}
 	}
 }
 
-func writeRejected(w http.ResponseWriter, errs []models.FieldError) {
+func (h *PaymentsHandler) writeRejected(ctx context.Context, w http.ResponseWriter, errs []models.FieldError) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
-	_ = json.NewEncoder(w).Encode(models.RejectedResponse{
+	rejected := models.RejectedResponse{
 		PaymentStatus: models.StatusRejected,
 		Errors:        errs,
-	})
+	}
+	if err := json.NewEncoder(w).Encode(rejected); err != nil {
+		h.logger.ErrorContext(ctx, "failed to encode rejected-payment response", slog.Any("error", err))
+	}
 }
 
 // toAuthorizationRequest builds the bank's request shape from a payment

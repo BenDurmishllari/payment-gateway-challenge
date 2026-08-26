@@ -34,14 +34,14 @@ func (a *Api) SwaggerHandler() http.HandlerFunc {
 
 // GetPaymentHandler returns an http.HandlerFunc that handles Payments GET requests.
 func (a *Api) GetPaymentHandler() http.HandlerFunc {
-	h := handlers.NewPaymentsHandler(a.paymentsRepo, a.authorizer)
+	h := handlers.NewPaymentsHandler(a.paymentsRepo, a.authorizer, a.logger)
 
 	return h.GetHandler()
 }
 
 // PostPaymentHandler returns an http.HandlerFunc that handles Payments POST requests.
 func (a *Api) PostPaymentHandler() http.HandlerFunc {
-	h := handlers.NewPaymentsHandler(a.paymentsRepo, a.authorizer)
+	h := handlers.NewPaymentsHandler(a.paymentsRepo, a.authorizer, a.logger)
 
 	return h.PostHandler()
 }
