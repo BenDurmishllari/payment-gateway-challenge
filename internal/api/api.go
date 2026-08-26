@@ -2,8 +2,8 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"net"
+	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -15,25 +15,28 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const bankSimulatorTimeout = 5 * time.Second
+const (
+	bankSimulatorTimeout = 5 * time.Second
+	shutdownTimeout      = 10 * time.Second
+)
 
 type Api struct {
 	router       *chi.Mux
 	paymentsRepo *repository.PaymentsRepository
 	authorizer   bank.Authorizer
+	logger       *slog.Logger
 }
 
-func New() *Api {
+func New(logger *slog.Logger) *Api {
 	a := &Api{}
 	a.paymentsRepo = repository.NewPaymentsRepository()
 	a.authorizer = bank.NewClient(bankSimulatorURL(), bankSimulatorTimeout)
+	a.logger = logger
 	a.setupRouter()
 
 	return a
 }
 
-// bankSimulatorURL returns the acquiring bank's base URL, defaulting to the
-// bank simulator's address when running via docker-compose.
 func bankSimulatorURL() string {
 	if url := os.Getenv("BANK_SIMULATOR_URL"); url != "" {
 		return url
@@ -43,23 +46,29 @@ func bankSimulatorURL() string {
 
 func (a *Api) Run(ctx context.Context, addr string) error {
 	httpServer := &http.Server{
-		Addr:        addr,
-		Handler:     a.router,
-		BaseContext: func(_ net.Listener) context.Context { return ctx },
+		Addr:    addr,
+		Handler: a.router,
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, runCtx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		<-ctx.Done()
-		fmt.Printf("shutting down HTTP server\n")
-		return httpServer.Shutdown(ctx)
+		<-runCtx.Done()
+		slog.InfoContext(ctx, "shutting down HTTP server")
+
+		// A fresh context, not runCtx: runCtx is already cancelled by this
+		// point, and Shutdown treats an already-done context as "stop
+		// immediately" rather than "wait for in-flight requests to drain."
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+
+		return httpServer.Shutdown(shutdownCtx)
 	})
 
 	g.Go(func() error {
-		fmt.Printf("starting HTTP server on %s\n", addr)
+		slog.InfoContext(ctx, "starting HTTP server", slog.String("addr", addr))
 		err := httpServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return err
 		}
 
