@@ -1,18 +1,42 @@
-# Instructions for candidates
+# Payment Gateway
 
-This is the Go version of the Payment Gateway challenge. If you haven't already read the [README.md](https://github.com/cko-recruitment/) in the root of this organisation, please do so now. 
+A payment gateway API that lets a merchant process a card payment (forwarding it to an acquiring bank) and retrieve a previously processed payment.
 
-## Template structure
-```
-main.go - a skeleton Payment Gateway API
-imposters/ - contains the bank simulator configuration. Don't change this
-docs/docs.go - Generated file by Swaggo
-.editorconfig - don't change this. It ensures a consistent set of rules for submissions when reformatting code
-docker-compose.yml - configures the bank simulator
-.goreleaser.yml - Goreleaser configuration
+## Running it
+
+```bash
+docker-compose up -d
+go run main.go
 ```
 
-Feel free to change the structure of the solution, use a different test library etc.
+The gateway's acquiring bank URL defaults to `http://localhost:8080` (the simulator started above) and can be overridden with the `BANK_SIMULATOR_URL` environment variable.
 
-### Swagger
-This template uses Swaggo to autodocument the API and create a Swagger spec. The Swagger UI is available at http://localhost:8090/swagger/index.html.
+## API
+
+| Endpoint | Description |
+|---|---|
+| `POST /api/payments` | Process a card payment |
+| `GET /api/payments/{id}` | Retrieve a previously processed payment |
+| `GET /swagger/index.html` | Swagger UI |
+
+## Testing
+
+```bash
+go test ./... 
+```
+
+## Design decisions and assumptions
+
+* **Three Payment Outcomes:**
+    * Authorized / Declined: Result from contacting the bank. Stored in memory.
+    * Rejected: Failed validation before calling the bank. Returns `400 Bad Request` with a list of invalid fields and is not stored.
+* **Supported Currencies:** Limited to `GBP`, `USD`, and `EUR` as specified.
+* **Positive Amount Only:** Payment amounts must be greater than zero.
+* **Expiry Month Rule:** A card expiring in the current month is treated as expired (not in the future) and will be rejected.
+* **Handling Bank Outages:** If the acquiring bank is unavailable (`503`), the gateway returns `502 Bad Gateway` and does not store the payment because the final outcome is unknown.
+* **Security & Sensitive Data:**
+    * Only the last 4 digits of the card are kept.
+    * Full card numbers and CVVs are never logged or stored.
+* **No Card Fingerprinting:** Not implemented as the task does not require card recognition across payments. In production, a one-way hash of the full card number would typically be stored alongside the masked digits to support fraud checks, velocity limits etc. without exposing the raw card number
+* **No Idempotency Keys:** Not implemented as the spec does not define an idempotency key. Without one, a retried request is treated as a new payment and the customer could be charged twice. In production, merchants would supply an Idempotency-Key per payment attempt, which the gateway would use to detect retries and return the original result without calling the bank again.
+* **In-Memory Storage:** Payments are saved in a `map` protected by `sync.RWMutex` to handle concurrent HTTP requests safely.
