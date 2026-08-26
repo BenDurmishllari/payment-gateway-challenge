@@ -16,7 +16,7 @@ type PostPaymentRequest struct {
 }
 
 type PostPaymentResponse struct {
-	Id                 string `json:"id"`
+	ID                 string `json:"id"`
 	PaymentStatus      string `json:"payment_status"`
 	CardNumberLastFour string `json:"card_number_last_four"`
 	ExpiryMonth        int    `json:"expiry_month"`
@@ -26,7 +26,7 @@ type PostPaymentResponse struct {
 }
 
 type GetPaymentResponse struct {
-	Id                 string `json:"id"`
+	ID                 string `json:"id"`
 	PaymentStatus      string `json:"payment_status"`
 	CardNumberLastFour string `json:"card_number_last_four"`
 	ExpiryMonth        int    `json:"expiry_month"`

@@ -29,5 +29,5 @@ func (ps *PaymentsRepository) AddPayment(payment models.GetPaymentResponse) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 
-	ps.payments[payment.Id] = payment
+	ps.payments[payment.ID] = payment
 }
