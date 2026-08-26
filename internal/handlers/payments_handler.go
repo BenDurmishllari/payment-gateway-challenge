@@ -24,16 +24,17 @@ func NewPaymentsHandler(storage *repository.PaymentsRepository) *PaymentsHandler
 func (h *PaymentsHandler) GetHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
-		payment := h.storage.GetPayment(id)
+		payment, ok := h.storage.GetPayment(id)
 
-		if payment != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			if err := json.NewEncoder(w).Encode(payment); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-		} else {
-			w.WriteHeader(http.StatusNoContent)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(payment); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
 }

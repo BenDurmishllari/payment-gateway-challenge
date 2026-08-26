@@ -1,28 +1,33 @@
 package repository
 
 import (
+	"sync"
+
 	"github.com/cko-recruitment/payment-gateway-challenge-go/internal/models"
 )
 
 type PaymentsRepository struct {
-	payments []models.PostPaymentResponse
+	mu       sync.RWMutex
+	payments map[string]models.GetPaymentResponse
 }
 
 func NewPaymentsRepository() *PaymentsRepository {
 	return &PaymentsRepository{
-		payments: []models.PostPaymentResponse{},
+		payments: make(map[string]models.GetPaymentResponse),
 	}
 }
 
-func (ps *PaymentsRepository) GetPayment(id string) *models.PostPaymentResponse {
-	for _, element := range ps.payments {
-		if element.Id == id {
-			return &element
-		}
-	}
-	return nil
+func (ps *PaymentsRepository) GetPayment(id string) (models.GetPaymentResponse, bool) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
+	payment, ok := ps.payments[id]
+	return payment, ok
 }
 
-func (ps *PaymentsRepository) AddPayment(payment models.PostPaymentResponse) {
-	ps.payments = append(ps.payments, payment)
+func (ps *PaymentsRepository) AddPayment(payment models.GetPaymentResponse) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	ps.payments[payment.Id] = payment
 }
