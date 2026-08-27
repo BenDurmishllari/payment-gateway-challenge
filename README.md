@@ -6,10 +6,20 @@ A payment gateway API that lets a merchant process a card payment (forwarding it
 
 ```bash
 docker-compose up -d
-go run main.go
 ```
 
-The gateway's acquiring bank URL defaults to `http://localhost:8080` (the simulator started above) and can be overridden with the `BANK_SIMULATOR_URL` environment variable.
+This builds and starts both containers:
+
+| Service | Container | Port |
+|---|---|---|
+| Bank simulator | `bank_simulator` | `:8080` |
+| Payment gateway | `payment_gateway` | `:8090` |
+
+To stop everything:
+
+```bash
+docker-compose down
+```
 
 ## API
 
