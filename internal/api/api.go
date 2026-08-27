@@ -32,7 +32,7 @@ type Api struct {
 func New(logger *slog.Logger) *Api {
 	a := &Api{}
 	a.paymentsRepo = repository.NewPaymentsRepository()
-	a.authorizer = bank.NewClient(bankSimulatorURL(), bankSimulatorTimeout)
+	a.authorizer = bank.NewClient(acquiringBankURL(), bankSimulatorTimeout)
 	a.paymentsHandler = handlers.NewPaymentsHandler(a.paymentsRepo, a.authorizer, logger)
 	a.logger = logger
 	a.setupRouter()
@@ -40,7 +40,7 @@ func New(logger *slog.Logger) *Api {
 	return a
 }
 
-func bankSimulatorURL() string {
+func acquiringBankURL() string {
 	if url := os.Getenv("BANK_SIMULATOR_URL"); url != "" {
 		return url
 	}

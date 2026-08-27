@@ -13,7 +13,6 @@ type pong struct {
 	Message string `json:"message"`
 }
 
-// PingHandler returns an http.HandlerFunc that handles HTTP Ping GET requests.
 func (a *Api) PingHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -24,7 +23,6 @@ func (a *Api) PingHandler() http.HandlerFunc {
 	}
 }
 
-// SwaggerHandler returns an http.HandlerFunc that handles HTTP Swagger related requests.
 func (a *Api) SwaggerHandler() http.HandlerFunc {
 	return httpSwagger.Handler(
 		httpSwagger.URL(fmt.Sprintf("http://%s/swagger/doc.json", docs.SwaggerInfo.Host)),

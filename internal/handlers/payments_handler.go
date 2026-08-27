@@ -131,9 +131,6 @@ func (h *PaymentsHandler) writeRejected(ctx context.Context, w http.ResponseWrit
 	}
 }
 
-// toAuthorizationRequest builds the bank's request shape from a payment
-// request, formatting the expiry date as the zero-padded MM/YYYY the bank
-// simulator expects.
 func toAuthorizationRequest(req models.PostPaymentRequest) bank.AuthorizationRequest {
 	return bank.AuthorizationRequest{
 		CardNumber: req.CardNumber,
@@ -144,8 +141,6 @@ func toAuthorizationRequest(req models.PostPaymentRequest) bank.AuthorizationReq
 	}
 }
 
-// bankErrorStatusCode maps a bank call failure to the HTTP status returned
-// to the merchant.
 func bankErrorStatusCode(err error) int {
 	if errors.Is(err, bank.ErrBankUnavailable) {
 		return http.StatusBadGateway
@@ -153,8 +148,6 @@ func bankErrorStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
-// buildPaymentResponses builds the reply sent back to the merchant and the
-// record stored for later retrieval, from the same underlying values.
 func buildPaymentResponses(id, status string, req models.PostPaymentRequest) (models.PostPaymentResponse, models.GetPaymentResponse) {
 	lastFour := req.CardNumber[len(req.CardNumber)-4:]
 
